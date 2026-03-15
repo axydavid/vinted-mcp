@@ -41,10 +41,30 @@ jobs:
           const fs = require('fs');
           const pkgPath = 'package.json';
           const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-          const baseVersion = pkg.version;
-          const canaryVersion = `${baseVersion}-next.${process.env.GITHUB_RUN_NUMBER}.${process.env.GITHUB_RUN_ATTEMPT}`;
+          const rawVersion = String(pkg.version || '').trim();
+
+          function normaliseSemverBase(version) {
+            const cleaned = version.replace(/^v/, '').split('+')[0].split('-')[0];
+            const match = cleaned.match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?$/);
+
+            if (!match) {
+              return '0.0.0';
+            }
+
+            const major = match[1] || '0';
+            const minor = match[2] || '0';
+            const patch = match[3] || '0';
+            return `${major}.${minor}.${patch}`;
+          }
+
+          const baseVersion = normaliseSemverBase(rawVersion);
+          const runNumber = process.env.GITHUB_RUN_NUMBER || '0';
+          const runAttempt = process.env.GITHUB_RUN_ATTEMPT || '1';
+          const canaryVersion = `${baseVersion}-next.${runNumber}.${runAttempt}`;
+
           pkg.version = canaryVersion;
           fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+          console.log(`Base version: ${rawVersion} -> ${baseVersion}`);
           console.log(`Canary version: ${canaryVersion}`);
           NODE
 
