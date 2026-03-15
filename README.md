@@ -47,6 +47,14 @@ Add this to your MCP client config:
 }
 ```
 
+### Option 1b: bunx (canary)
+
+```bash
+bunx @andrijdavid/vinted-mcp@next
+```
+
+This starts the server in `stdio` mode and waits for an MCP client.
+
 ### Option 2: global install
 
 ```bash
@@ -63,6 +71,82 @@ Then configure:
     }
   }
 }
+```
+
+### Run in network mode (Streamable HTTP over TCP)
+
+If you need a network endpoint instead of stdio, run:
+
+```bash
+VINTED_MCP_TRANSPORT=http VINTED_MCP_HOST=127.0.0.1 VINTED_MCP_PORT=3001 bunx @andrijdavid/vinted-mcp@next
+```
+
+Optional:
+
+- `VINTED_MCP_PATH` (default `/mcp`)
+- `VINTED_MCP_ENABLE_LEGACY_SSE` (default `true`)
+- `VINTED_MCP_LEGACY_SSE_PATH` (default `/sse`)
+- `VINTED_MCP_LEGACY_MESSAGES_PATH` (default `/messages`)
+
+Default endpoints:
+
+- Streamable HTTP (recommended): `http://127.0.0.1:3001/mcp`
+- Legacy SSE (older clients): `http://127.0.0.1:3001/sse`
+
+## CLI usage and env variables
+
+### Pass env vars inline (macOS/Linux)
+
+```bash
+VINTED_AUTH_MODE=env \
+VINTED_AUTH_COOKIES='session_cookie=your_value; other_cookie=your_value' \
+VINTED_AUTH_CSRF_TOKEN='your_csrf_token' \
+bunx @andrijdavid/vinted-mcp@next
+```
+
+### Pass env vars inline (PowerShell)
+
+```powershell
+$env:VINTED_AUTH_MODE = "env"
+$env:VINTED_AUTH_COOKIES = "session_cookie=your_value; other_cookie=your_value"
+$env:VINTED_AUTH_CSRF_TOKEN = "your_csrf_token"
+bunx @andrijdavid/vinted-mcp@next
+```
+
+### Pass env vars inline (Windows Command Prompt)
+
+```bat
+set VINTED_AUTH_MODE=env
+set VINTED_AUTH_COOKIES=session_cookie=your_value; other_cookie=your_value
+set VINTED_AUTH_CSRF_TOKEN=your_csrf_token
+bunx @andrijdavid/vinted-mcp@next
+```
+
+### Use a local `.env` file
+
+The server auto-loads `.env` from the current working directory.
+
+```bash
+cp .env.example .env
+bunx @andrijdavid/vinted-mcp@next
+```
+
+### Run network mode from CLI with env
+
+```bash
+VINTED_MCP_TRANSPORT=http \
+VINTED_MCP_HOST=127.0.0.1 \
+VINTED_MCP_PORT=3001 \
+bunx @andrijdavid/vinted-mcp@next
+```
+
+Windows Command Prompt:
+
+```bat
+set VINTED_MCP_TRANSPORT=http
+set VINTED_MCP_HOST=127.0.0.1
+set VINTED_MCP_PORT=3001
+bunx @andrijdavid/vinted-mcp@next
 ```
 
 ## Authentication and environment
