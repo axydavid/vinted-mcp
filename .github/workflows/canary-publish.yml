@@ -1,0 +1,59 @@
+name: Canary Publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: package
+    env:
+      REGISTRY_URL: ${{ vars.NPM_REGISTRY_URL || 'https://registry.npmjs.org' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: ${{ env.REGISTRY_URL }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install TypeScript for build
+        run: npm install --no-save typescript
+
+      - name: Build and test
+        run: npm run build && npm run bundle && npm test
+
+      - name: Set canary version
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const pkgPath = 'package.json';
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          const baseVersion = pkg.version;
+          const canaryVersion = `${baseVersion}-next.${process.env.GITHUB_RUN_NUMBER}.${process.env.GITHUB_RUN_ATTEMPT}`;
+          pkg.version = canaryVersion;
+          fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+          console.log(`Canary version: ${canaryVersion}`);
+          NODE
+
+      - name: Publish canary to registry
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ "$REGISTRY_URL" = "https://registry.npmjs.org" ]; then
+            npm publish --tag next --provenance
+          else
+            npm publish --tag next
+          fi

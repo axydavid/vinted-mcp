@@ -1,0 +1,78 @@
+name: Main Validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: package
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build and test
+        run: npm run build && npm run bundle && npm test
+
+      - name: Create npm tarball
+        id: pack
+        run: |
+          TARBALL=$(npm pack --silent)
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test installed tarball
+        run: |
+          TMP_DIR=$(mktemp -d)
+          cp "${{ steps.pack.outputs.tarball }}" "$TMP_DIR/"
+          cd "$TMP_DIR"
+
+          npm init -y > /dev/null 2>&1
+          npm install "./${{ steps.pack.outputs.tarball }}"
+
+          node - <<'NODE'
+          const assert = require('node:assert/strict');
+          const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
+          const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
+
+          (async () => {
+            const binPath = require.resolve('vinted-mcp-server/dist/bundle.js');
+            const transport = new StdioClientTransport({
+              command: 'node',
+              args: [binPath],
+              cwd: process.cwd(),
+              env: process.env
+            });
+
+            const client = new Client({ name: 'pack-smoke', version: '1.0.0' }, { capabilities: {} });
+            await client.connect(transport);
+
+            const tools = await client.listTools();
+            assert.ok(Array.isArray(tools.tools), 'Expected tools array');
+            assert.ok(tools.tools.length >= 5, 'Expected at least 5 tools');
+
+            await client.close();
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-package-tarball
+          path: package/${{ steps.pack.outputs.tarball }}
