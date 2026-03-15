@@ -1,0 +1,206 @@
+# vinted-mcp
+
+[![npm version](https://img.shields.io/npm/v/vinted-mcp.svg)](https://www.npmjs.com/package/vinted-mcp)
+[![License: AGPL v3+](https://img.shields.io/badge/License-AGPL%20v3%2B-blue.svg)](./LICENSE.md)
+
+MCP server for Vinted search and analysis.
+
+It provides tools to:
+
+- search listings
+- fetch item details
+- inspect seller profiles
+- compare prices across countries
+- surface trending items
+
+It also exposes resources for supported countries and category data.
+
+## Client support
+
+This server works with MCP clients that support local `stdio` servers.
+
+Popular clients and setup docs:
+
+- Claude Desktop (local): https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop
+- Claude Desktop (remote): https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp
+- ChatGPT (MCP developer mode): https://platform.openai.com/docs/guides/developer-mode
+- ChatGPT (MCP and connectors): https://platform.openai.com/docs/guides/tools-remote-mcp
+- Cursor: https://docs.cursor.com/context/model-context-protocol
+- Windsurf: https://docs.windsurf.com/windsurf/cascade/mcp
+- Cline: https://docs.cline.bot/mcp/configuring-mcp-servers
+- Full MCP client directory: https://modelcontextprotocol.io/clients
+
+## Quick start
+
+### Option 1: npx
+
+Add this to your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "vinted": {
+      "command": "npx",
+      "args": ["-y", "vinted-mcp"]
+    }
+  }
+}
+```
+
+### Option 2: global install
+
+```bash
+npm install -g vinted-mcp
+```
+
+Then configure:
+
+```json
+{
+  "mcpServers": {
+    "vinted": {
+      "command": "vinted-mcp-server"
+    }
+  }
+}
+```
+
+## Authentication and environment
+
+The server auto-loads `.env` from the working directory if present.
+
+Start from the example file:
+
+```bash
+cp .env.example .env
+```
+
+Main variables:
+
+- `VINTED_AUTH_MODE`: `http`, `playwright`, or `env`
+- `VINTED_AUTH_COOKIES`: cookie header string or JSON object string
+- `VINTED_AUTH_CSRF_TOKEN`: CSRF token
+- `VINTED_AUTH_ACCESS_TOKEN`: optional bearer token
+- `VINTED_PROXY_URL`: optional proxy URL
+- `VINTED_MAX_CONCURRENCY`: optional tuning
+- `VINTED_REQUEST_DELAY_MS`: optional tuning
+- `VINTED_MAX_RETRIES`: optional tuning
+
+Example client config with env auth:
+
+```json
+{
+  "mcpServers": {
+    "vinted": {
+      "command": "npx",
+      "args": ["-y", "vinted-mcp"],
+      "env": {
+        "VINTED_AUTH_MODE": "env",
+        "VINTED_AUTH_COOKIES": "session_cookie=your_value; other_cookie=your_value",
+        "VINTED_AUTH_CSRF_TOKEN": "your_csrf_token"
+      }
+    }
+  }
+}
+```
+
+### How to get cookies and CSRF token
+
+1. Sign in to Vinted in your browser.
+2. Open Developer Tools.
+3. Open `Network` and refresh.
+4. Open any `https://www.vinted.<country>/api/...` request.
+5. Copy from `Request Headers`:
+   - `cookie` -> `VINTED_AUTH_COOKIES`
+   - `x-csrf-token` -> `VINTED_AUTH_CSRF_TOKEN`
+6. Optional: copy `authorization: Bearer ...` token into `VINTED_AUTH_ACCESS_TOKEN`.
+
+Security notes:
+
+- treat these values as secrets
+- never commit `.env`
+- rotate tokens/cookies if exposed
+
+## Tools
+
+### `search_items`
+
+Search listings with filters like country, price range, brand IDs, category, condition, sort, and limit.
+
+### `get_item`
+
+Get item details by `itemId` or `url`.
+
+### `get_seller`
+
+Get seller profile data and optional recent items by `sellerId` or `url`.
+
+### `compare_prices`
+
+Compare average and median prices for a query across countries.
+
+### `get_trending`
+
+Return trending items by engagement score.
+
+## Resources
+
+- `vinted://countries`
+- `vinted://categories`
+
+Supported countries: `fr`, `de`, `uk`, `it`, `es`, `nl`, `pl`, `pt`, `be`, `at`, `lt`, `cz`, `sk`, `hu`, `ro`, `hr`, `fi`, `dk`, `se`.
+
+## Local development
+
+```bash
+npm install
+npm run build
+npm run bundle
+npm start
+```
+
+## Testing
+
+Run protocol-level tests:
+
+```bash
+npm test
+```
+
+Run live integration tests:
+
+```bash
+RUN_LIVE_MCP_TESTS=1 npm test
+```
+
+## CI and release workflows
+
+Repository workflows:
+
+- `.github/workflows/main-validation.yml`
+  - runs on push/PR to `main`
+  - builds, tests, creates npm tarball, smoke-tests tarball install
+- `.github/workflows/canary-publish.yml`
+  - publishes `next` builds from `main`
+- `.github/workflows/publish.yml`
+  - publishes stable release on GitHub release publish
+
+Required secret:
+
+- `NPM_TOKEN`
+
+Optional variable:
+
+- `NPM_REGISTRY_URL` (default `https://registry.npmjs.org`)
+
+Install canary builds:
+
+```bash
+npm i vinted-mcp@next
+```
+
+## License
+
+Licensed under `AGPL-3.0-or-later`.
+
+See `LICENSE.md`.
