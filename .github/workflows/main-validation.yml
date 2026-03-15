@@ -49,7 +49,7 @@ jobs:
           const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
 
           (async () => {
-            const binPath = require.resolve('vinted-mcp-server/dist/bundle.js');
+            const binPath = require.resolve('@andrijdavid/vinted-mcp/dist/bundle.js');
             const transport = new StdioClientTransport({
               command: 'node',
               args: [binPath],

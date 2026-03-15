@@ -1,6 +1,6 @@
-# vinted-mcp
+# @andrijdavid/vinted-mcp
 
-[![npm version](https://img.shields.io/npm/v/vinted-mcp.svg)](https://www.npmjs.com/package/vinted-mcp)
+[![npm version](https://img.shields.io/npm/v/%40andrijdavid%2Fvinted-mcp.svg)](https://www.npmjs.com/package/@andrijdavid/vinted-mcp)
 [![License: AGPL v3+](https://img.shields.io/badge/License-AGPL%20v3%2B-blue.svg)](./LICENSE.md)
 
 MCP server for Vinted search and analysis.
@@ -41,7 +41,7 @@ Add this to your MCP client config:
   "mcpServers": {
     "vinted": {
       "command": "npx",
-      "args": ["-y", "vinted-mcp"]
+      "args": ["-y", "@andrijdavid/vinted-mcp"]
     }
   }
 }
@@ -50,7 +50,7 @@ Add this to your MCP client config:
 ### Option 2: global install
 
 ```bash
-npm install -g vinted-mcp
+npm install -g @andrijdavid/vinted-mcp
 ```
 
 Then configure:
@@ -59,7 +59,7 @@ Then configure:
 {
   "mcpServers": {
     "vinted": {
-      "command": "vinted-mcp-server"
+      "command": "vinted-mcp"
     }
   }
 }
@@ -93,7 +93,7 @@ Example client config with env auth:
   "mcpServers": {
     "vinted": {
       "command": "npx",
-      "args": ["-y", "vinted-mcp"],
+      "args": ["-y", "@andrijdavid/vinted-mcp"],
       "env": {
         "VINTED_AUTH_MODE": "env",
         "VINTED_AUTH_COOKIES": "session_cookie=your_value; other_cookie=your_value",
@@ -196,7 +196,7 @@ Optional variable:
 Install canary builds:
 
 ```bash
-npm i vinted-mcp@next
+npm i @andrijdavid/vinted-mcp@next
 ```
 
 ## License

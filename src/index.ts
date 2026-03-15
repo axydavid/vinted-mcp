@@ -22,7 +22,7 @@ const RESOURCES = [countriesResource, categoriesResource];
 export function createServer(): Server {
   const server = new Server(
     {
-      name: "vinted-mcp-server",
+      name: "vinted-mcp",
       version: "1.0.1"
     },
     {
