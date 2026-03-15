@@ -1,0 +1,46 @@
+name: Publish Package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: package
+    env:
+      REGISTRY_URL: ${{ vars.NPM_REGISTRY_URL || 'https://registry.npmjs.org' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: ${{ env.REGISTRY_URL }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install TypeScript for build
+        run: npm install --no-save typescript
+
+      - name: Build package
+        run: npm run build && npm run bundle
+
+      - name: Publish to registry
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ "$REGISTRY_URL" = "https://registry.npmjs.org" ]; then
+            npm publish --provenance
+          else
+            npm publish
+          fi
