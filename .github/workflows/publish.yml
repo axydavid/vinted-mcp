@@ -43,7 +43,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           if [ "$REGISTRY_URL" = "https://registry.npmjs.org" ]; then
-            npm publish --provenance
+            npm publish --access public --provenance
           else
             npm publish
           fi
