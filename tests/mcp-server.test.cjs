@@ -54,6 +54,102 @@ test("lists resources", async () => {
   assert.deepEqual(uris, ["vinted://categories", "vinted://countries"]);
 });
 
+test("lists resource templates", async () => {
+  const response = await client.listResourceTemplates();
+  const templates = response.resourceTemplates || [];
+  const templateUris = templates.map((template) => template.uriTemplate).sort();
+
+  assert.deepEqual(templateUris, [
+    "vinted://item/{country}/{itemId}",
+    "vinted://search/{country}/{query}",
+    "vinted://seller/{country}/{sellerId}"
+  ]);
+});
+
+test("lists and resolves prompts", async () => {
+  const list = await client.listPrompts();
+  const names = (list.prompts || []).map((prompt) => prompt.name).sort();
+
+  assert.deepEqual(names, [
+    "buy_or_skip_decision",
+    "find_best_deal",
+    "resale_arbitrage_estimator",
+    "screen_seller",
+    "search_item_with_filters",
+    "trending_report"
+  ]);
+
+  const prompt = await client.getPrompt({
+    name: "find_best_deal",
+    arguments: {
+      item: "nike air max",
+      countries: "fr,de",
+      maxPrice: "50"
+    }
+  });
+
+  assert.equal(Array.isArray(prompt.messages), true);
+  assert.equal(prompt.messages.length > 0, true);
+  const first = prompt.messages[0];
+  assert.equal(first.role, "user");
+  assert.equal(first.content.type, "text");
+  assert.equal(first.content.text.includes("nike air max"), true);
+
+  const filteredPrompt = await client.getPrompt({
+    name: "search_item_with_filters",
+    arguments: {
+      item: "nike dunk",
+      country: "fr",
+      size: "42",
+      brand: "Nike",
+      maxPrice: "100",
+      limit: "10"
+    }
+  });
+
+  assert.equal(Array.isArray(filteredPrompt.messages), true);
+  assert.equal(filteredPrompt.messages.length > 0, true);
+  const filteredText = filteredPrompt.messages[0].content.text;
+  assert.equal(filteredText.includes("size 42"), true);
+  assert.equal(filteredText.includes("brand Nike"), true);
+
+  const decisionPrompt = await client.getPrompt({
+    name: "buy_or_skip_decision",
+    arguments: {
+      itemId: "4283719503",
+      country: "fr",
+      compareQuery: "nike dunk low",
+      compareCountries: "fr,de,it",
+      budget: "120"
+    }
+  });
+
+  assert.equal(Array.isArray(decisionPrompt.messages), true);
+  assert.equal(decisionPrompt.messages.length > 0, true);
+  const decisionText = decisionPrompt.messages[0].content.text;
+  assert.equal(decisionText.includes("get_item"), true);
+  assert.equal(decisionText.includes("get_seller"), true);
+  assert.equal(decisionText.includes("compare_prices"), true);
+
+  const resalePrompt = await client.getPrompt({
+    name: "resale_arbitrage_estimator",
+    arguments: {
+      item: "new balance 2002r",
+      buyCountry: "fr",
+      sellCountry: "de",
+      shippingCost: "8",
+      feePct: "12",
+      limit: "20"
+    }
+  });
+
+  assert.equal(Array.isArray(resalePrompt.messages), true);
+  assert.equal(resalePrompt.messages.length > 0, true);
+  const resaleText = resalePrompt.messages[0].content.text;
+  assert.equal(resaleText.includes("compare_prices"), true);
+  assert.equal(resaleText.includes("net expected profit"), true);
+});
+
 test("reads countries and categories resources", async () => {
   const countriesRes = await client.readResource({ uri: "vinted://countries" });
   const countries = JSON.parse(getText(countriesRes));

@@ -2,6 +2,9 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
   CallToolRequestSchema,
+  GetPromptRequestSchema,
+  ListPromptsRequestSchema,
+  ListResourceTemplatesRequestSchema,
   ListResourcesRequestSchema,
   ListToolsRequestSchema,
   ReadResourceRequestSchema
@@ -18,6 +21,91 @@ import { VintedAPIClient } from "./vinted-core";
 
 const TOOLS = [searchItemsTool, getItemTool, getSellerTool, comparePricesTool, getTrendingTool];
 const RESOURCES = [countriesResource, categoriesResource];
+const RESOURCE_TEMPLATES = [
+  {
+    name: "Vinted Item By ID",
+    uriTemplate: "vinted://item/{country}/{itemId}",
+    description: "Returns full item details for a given country code and item ID.",
+    mimeType: "application/json"
+  },
+  {
+    name: "Vinted Seller By ID",
+    uriTemplate: "vinted://seller/{country}/{sellerId}",
+    description: "Returns seller profile details and recent items for a given seller ID.",
+    mimeType: "application/json"
+  },
+  {
+    name: "Vinted Search Query",
+    uriTemplate: "vinted://search/{country}/{query}",
+    description: "Runs a quick search query in a country and returns a result page.",
+    mimeType: "application/json"
+  }
+];
+
+const PROMPTS = [
+  {
+    name: "find_best_deal",
+    description: "Compare listing prices and identify the best value for an item.",
+    arguments: [
+      { name: "item", description: "Item keywords to search for", required: true },
+      { name: "countries", description: "Comma separated country codes, for example fr,de,it", required: false },
+      { name: "maxPrice", description: "Optional price ceiling", required: false }
+    ]
+  },
+  {
+    name: "screen_seller",
+    description: "Review a seller profile and highlight trust signals and risk flags.",
+    arguments: [
+      { name: "sellerId", description: "Seller ID", required: true },
+      { name: "country", description: "Country code", required: true }
+    ]
+  },
+  {
+    name: "trending_report",
+    description: "Create a short report of trending listings and potential demand signals.",
+    arguments: [
+      { name: "country", description: "Country code", required: true },
+      { name: "query", description: "Optional keyword filter", required: false },
+      { name: "limit", description: "How many trending items to include", required: false }
+    ]
+  },
+  {
+    name: "search_item_with_filters",
+    description: "Search a given item with size and optional brand filters.",
+    arguments: [
+      { name: "item", description: "Item keywords to search for", required: true },
+      { name: "country", description: "Country code", required: true },
+      { name: "size", description: "Size label to match, for example M, L, 42", required: true },
+      { name: "brand", description: "Optional preferred brand name", required: false },
+      { name: "maxPrice", description: "Optional maximum price", required: false },
+      { name: "condition", description: "Optional condition preference", required: false },
+      { name: "limit", description: "Optional maximum number of results", required: false }
+    ]
+  },
+  {
+    name: "buy_or_skip_decision",
+    description: "Analyse one listing, check seller quality, compare market prices, and give a buy or skip recommendation.",
+    arguments: [
+      { name: "itemId", description: "Listing item ID to review", required: true },
+      { name: "country", description: "Country code", required: true },
+      { name: "compareQuery", description: "Optional query for market comparison", required: false },
+      { name: "compareCountries", description: "Optional comma separated country list, for example fr,de,it", required: false },
+      { name: "budget", description: "Optional budget ceiling", required: false }
+    ]
+  },
+  {
+    name: "resale_arbitrage_estimator",
+    description: "Estimate cross-country resale margin after shipping and platform fees.",
+    arguments: [
+      { name: "item", description: "Item keywords to evaluate", required: true },
+      { name: "buyCountry", description: "Country where you plan to buy", required: true },
+      { name: "sellCountry", description: "Country where you plan to sell", required: true },
+      { name: "shippingCost", description: "Estimated shipping cost in sell currency", required: false },
+      { name: "feePct", description: "Estimated platform fee percentage", required: false },
+      { name: "limit", description: "Items per country to sample", required: false }
+    ]
+  }
+];
 
 export function createServer(): Server {
   const server = new Server(
@@ -28,7 +116,8 @@ export function createServer(): Server {
     {
       capabilities: {
         tools: {},
-        resources: {}
+        resources: {},
+        prompts: {}
       }
     }
   );
@@ -98,8 +187,13 @@ export function createServer(): Server {
     resources: RESOURCES
   }));
 
+  server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({
+    resourceTemplates: RESOURCE_TEMPLATES
+  }));
+
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const { uri } = request.params;
+    const apiClient = getClient();
 
     switch (uri) {
       case "vinted://countries":
@@ -123,8 +217,209 @@ export function createServer(): Server {
           ]
         };
       default:
-        throw new Error(`Unknown resource: ${uri}`);
+        break;
     }
+
+    const itemMatch = uri.match(/^vinted:\/\/item\/([a-z]{2})\/(\d+)$/i);
+    if (itemMatch) {
+      const country = itemMatch[1].toLowerCase();
+      const itemId = Number.parseInt(itemMatch[2], 10);
+      const item = await apiClient.getItem(itemId, country);
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: "application/json",
+            text: JSON.stringify(item, null, 2)
+          }
+        ]
+      };
+    }
+
+    const sellerMatch = uri.match(/^vinted:\/\/seller\/([a-z]{2})\/(\d+)$/i);
+    if (sellerMatch) {
+      const country = sellerMatch[1].toLowerCase();
+      const sellerId = Number.parseInt(sellerMatch[2], 10);
+      const seller = await apiClient.getSeller(sellerId, country);
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: "application/json",
+            text: JSON.stringify(seller, null, 2)
+          }
+        ]
+      };
+    }
+
+    const searchMatch = uri.match(/^vinted:\/\/search\/([a-z]{2})\/(.+)$/i);
+    if (searchMatch) {
+      const country = searchMatch[1].toLowerCase();
+      const query = decodeURIComponent(searchMatch[2]);
+      const result = await apiClient.searchItems({
+        query,
+        country,
+        page: 1,
+        perPage: 20,
+        sortBy: "relevance"
+      });
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: "application/json",
+            text: JSON.stringify(result, null, 2)
+          }
+        ]
+      };
+    }
+
+    throw new Error(`Unknown resource: ${uri}`);
+  });
+
+  server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+    prompts: PROMPTS
+  }));
+
+  server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+    const name = request.params.name;
+    const args = request.params.arguments || {};
+
+    if (name === "find_best_deal") {
+      const item = args.item || "item";
+      const countries = args.countries || "fr,de,it,es,nl,pl";
+      const maxPrice = args.maxPrice ? ` and keep results under ${args.maxPrice}` : "";
+      return {
+        description: "Find the best listing across multiple countries.",
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text:
+                `Find the best deal for ${item} on Vinted in countries ${countries}${maxPrice}. ` +
+                "Use search_items and compare_prices. Return top options with short rationale and links."
+            }
+          }
+        ]
+      };
+    }
+
+    if (name === "screen_seller") {
+      const sellerId = args.sellerId || "seller_id";
+      const country = args.country || "fr";
+      return {
+        description: "Review a seller profile and risk signals.",
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text:
+                `Review seller ${sellerId} in ${country}. Use get_seller and summarise trust signals, ` +
+                "possible risks, item quality clues, and whether to buy."
+            }
+          }
+        ]
+      };
+    }
+
+    if (name === "trending_report") {
+      const country = args.country || "fr";
+      const query = args.query ? ` for query ${args.query}` : "";
+      const limit = args.limit || "20";
+      return {
+        description: "Generate a concise trending report.",
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text:
+                `Create a trending report for ${country}${query}. Use get_trending with limit ${limit}. ` +
+                "List top items, explain trend signals, and suggest what to monitor next."
+            }
+          }
+        ]
+      };
+    }
+
+    if (name === "search_item_with_filters") {
+      const item = args.item || "item";
+      const country = args.country || "fr";
+      const size = args.size || "M";
+      const brandClause = args.brand ? ` and brand ${args.brand}` : "";
+      const maxPriceClause = args.maxPrice ? ` and max price ${args.maxPrice}` : "";
+      const conditionClause = args.condition ? ` and condition ${args.condition}` : "";
+      const limit = args.limit || "20";
+
+      return {
+        description: "Search an item with size and optional brand constraints.",
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text:
+                `Search Vinted in ${country} for ${item} with size ${size}${brandClause}${maxPriceClause}${conditionClause}. ` +
+                `Use search_items and return up to ${limit} best matches with title, price, condition, size, brand, and link.`
+            }
+          }
+        ]
+      };
+    }
+
+    if (name === "buy_or_skip_decision") {
+      const itemId = args.itemId || "item_id";
+      const country = args.country || "fr";
+      const compareQuery = args.compareQuery || "the same item keyword";
+      const compareCountries = args.compareCountries || country;
+      const budgetClause = args.budget ? ` Budget limit is ${args.budget}.` : "";
+
+      return {
+        description: "Decide whether a listing is a good buy based on item details, seller trust, and market comparison.",
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text:
+                `Evaluate whether to buy item ${itemId} in ${country}.` +
+                ` First use get_item, then use get_seller for that seller, then use compare_prices with query ${compareQuery} across ${compareCountries}.` +
+                ` Return a final Buy or Skip decision with confidence score (0-100), key risks, price fairness, and negotiation tips.${budgetClause}`
+            }
+          }
+        ]
+      };
+    }
+
+    if (name === "resale_arbitrage_estimator") {
+      const item = args.item || "item";
+      const buyCountry = args.buyCountry || "fr";
+      const sellCountry = args.sellCountry || "de";
+      const shippingCost = args.shippingCost || "0";
+      const feePct = args.feePct || "10";
+      const limit = args.limit || "20";
+
+      return {
+        description: "Estimate resale opportunity between two countries.",
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text:
+                `Estimate arbitrage for ${item}. Use compare_prices across ${buyCountry} and ${sellCountry} with limit ${limit}. ` +
+                `Then calculate expected margin if buying in ${buyCountry} and selling in ${sellCountry}, ` +
+                `including shipping cost ${shippingCost} and fee ${feePct} percent. ` +
+                "Return gross spread, net expected profit, ROI percentage, key risks, and a go or no-go recommendation."
+            }
+          }
+        ]
+      };
+    }
+
+    throw new Error(`Unknown prompt: ${name}`);
   });
 
   return server;

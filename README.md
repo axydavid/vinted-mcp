@@ -232,6 +232,25 @@ Return trending items by engagement score.
 - `vinted://countries`
 - `vinted://categories`
 
+### Resource templates
+
+- `vinted://item/{country}/{itemId}`
+- `vinted://seller/{country}/{sellerId}`
+- `vinted://search/{country}/{query}`
+
+These templates let clients create direct resource URIs quickly.
+
+## Prompt templates
+
+- `find_best_deal`
+- `screen_seller`
+- `search_item_with_filters`
+- `trending_report`
+- `buy_or_skip_decision`
+- `resale_arbitrage_estimator`
+
+These predefined prompts help clients bootstrap common Vinted workflows.
+
 Supported countries: `fr`, `de`, `uk`, `it`, `es`, `nl`, `pl`, `pt`, `be`, `at`, `lt`, `cz`, `sk`, `hu`, `ro`, `hr`, `fi`, `dk`, `se`.
 
 ## Local development

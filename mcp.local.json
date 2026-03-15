@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "vinted": {
+      "command": "bunx",
+      "args": ["@andrijdavid/vinted-mcp@next"],
+      "env": {
+        "VINTED_MCP_TRANSPORT": "stdio"
+      }
+    }
+  }
+}
