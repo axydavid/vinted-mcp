@@ -15,6 +15,8 @@ It provides tools to:
 
 It also exposes resources for supported countries and category data.
 
+**Disclaimer**: This project is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Vinted, or any of its subsidiaries or its affiliates. The official Vinted website can be found at [vinted.com](https://www.vinted.com).
+
 ## Client support
 
 This server works with MCP clients that support local `stdio` servers.
