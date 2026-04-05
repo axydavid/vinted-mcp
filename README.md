@@ -3,15 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/%40andrijdavid%2Fvinted-mcp.svg)](https://www.npmjs.com/package/@andrijdavid/vinted-mcp)
 [![License: AGPL v3+](https://img.shields.io/badge/License-AGPL%20v3%2B-blue.svg)](./LICENSE.md)
 
-MCP server for Vinted search and analysis.
-
-It provides tools to:
-
-- search listings
-- fetch item details
-- inspect seller profiles
-- compare prices across countries
-- surface trending items
+An MCP server for Vinted search and analysis that provides tools to search listings, fetch item details, inspect seller profiles, compare prices across countries, and surface trending items.
 
 It also exposes resources for supported countries and category data.
 
