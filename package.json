@@ -5,8 +5,8 @@
   "mcpName": "io.github.andrijdavid/vinted-mcp",
   "main": "dist/bundle.js",
   "bin": {
-    "vinted-mcp": "./dist/bundle.js",
-    "vinted-mcp-server": "./dist/bundle.js"
+    "vinted-mcp": "dist/bundle.js",
+    "vinted-mcp-server": "dist/bundle.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -37,6 +37,17 @@
   ],
   "license": "AGPL-3.0-or-later",
   "author": "andrijdavid",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andrijdavid/vinted-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/andrijdavid/vinted-mcp/issues"
+  },
+  "homepage": "https://github.com/andrijdavid/vinted-mcp#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=18.0.0"
   },
