@@ -1,0 +1,78 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.andrijdavid/vinted-mcp",
+  "description": "MCP Server for Vinted marketplace — search items, compare prices, analyze sellers across 19 countries.",
+  "repository": {
+    "url": "https://github.com/andrijdavid/vinted-mcp",
+    "source": "github"
+  },
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@andrijdavid/vinted-mcp",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "VINTED_AUTH_MODE",
+          "description": "Auth mode: http | playwright | env",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "VINTED_AUTH_COOKIES",
+          "description": "Required for env auth mode",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "VINTED_AUTH_CSRF_TOKEN",
+          "description": "Required for env auth mode",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "VINTED_AUTH_ACCESS_TOKEN",
+          "description": "Optional for env auth mode",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "VINTED_PROXY_URL",
+          "description": "Optional network configuration",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "VINTED_MAX_CONCURRENCY",
+          "description": "Optional performance tuning. Default: 3",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "VINTED_REQUEST_DELAY_MS",
+          "description": "Optional performance tuning. Default: 500",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "VINTED_MAX_RETRIES",
+          "description": "Optional performance tuning. Default: 3",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}
