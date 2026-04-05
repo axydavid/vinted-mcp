@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.andrijdavid/vinted-mcp",
-  "description": "MCP Server for Vinted marketplace — search items, compare prices, analyze sellers across 19 countries.",
+  "description": "MCP Server for Vinted that allows to search items, compare prices, and analyze sellers.",
   "repository": {
     "url": "https://github.com/andrijdavid/vinted-mcp",
     "source": "github"
   },
-  "version": "0.1.1",
+  "version": "0.1.2",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@andrijdavid/vinted-mcp",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "transport": {
         "type": "stdio"
       },
