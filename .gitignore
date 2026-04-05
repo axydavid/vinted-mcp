@@ -4,22 +4,41 @@ node_modules/
 # Build output
 dist/
 dist-ts/
+coverage/
+*.tgz
 
-# Environment files
+# Environment & Secrets
 .env
 .env.local
 .env.*.local
+.env.development
+.env.test
+.env.production
+.npmrc
+*.pem
+*.key
+*.cert
+*.crt
+secrets.json
 
 # Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+.mcpregistry*
+*.log
 
-# Editor and temp files
+# Editor, temp, and AI assistant files
 *.swp
 *.swo
 *~
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
 
 # OS files
 .DS_Store
