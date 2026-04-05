@@ -270,32 +270,6 @@ Run live integration tests:
 RUN_LIVE_MCP_TESTS=1 npm test
 ```
 
-## CI and release workflows
-
-Repository workflows:
-
-- `.github/workflows/main-validation.yml`
-  - runs on push/PR to `main`
-  - builds, tests, creates npm tarball, smoke-tests tarball install
-- `.github/workflows/canary-publish.yml`
-  - publishes `next` builds from `main`
-- `.github/workflows/publish.yml`
-  - publishes stable release on GitHub release publish
-
-Required secret:
-
-- `NPM_TOKEN`
-
-Optional variable:
-
-- `NPM_REGISTRY_URL` (default `https://registry.npmjs.org`)
-
-Install canary builds:
-
-```bash
-npm i @andrijdavid/vinted-mcp@next
-```
-
 ## License
 
 Licensed under `AGPL-3.0-or-later`.
