@@ -16,7 +16,8 @@ export class HttpAuth {
   ) {}
 
   async createSession(country: string): Promise<AuthSession> {
-    const cached = this.tokenCache.get(country);
+    const key = country.toLowerCase();
+    const cached = this.tokenCache.get(key);
     if (cached) {
       return cached;
     }
@@ -77,6 +78,11 @@ export class HttpAuth {
 
         const refreshed = parseCookiesFromSetCookie(parseSetCookieHeaders(tokenRes.headers));
         Object.assign(cookies, refreshed);
+        if (refreshed.csrf_token) {
+          csrfToken = refreshed.csrf_token;
+        } else if (refreshed._csrf_token) {
+          csrfToken = refreshed._csrf_token;
+        }
       } catch {
         // Ignore token endpoint failure and continue with available cookie data.
       }
@@ -86,11 +92,11 @@ export class HttpAuth {
       accessToken,
       cookies,
       csrfToken,
-      country: country.toLowerCase(),
+      country: key,
       expiresAt: Date.now() + 25 * 60 * 1000
     };
 
-    this.tokenCache.set(country, session);
+    this.tokenCache.set(key, session);
     return session;
   }
 

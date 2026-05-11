@@ -1,25 +1,56 @@
 import { TokenCache } from "./token-cache";
 import type { AuthSession } from "../types";
+import { getBaseUrl } from "../models/country";
+
+const INVALIDATION_COOLDOWN_MS = 30 * 1000;
 
 export class EnvAuth {
+  private readonly invalidatedAt = new Map<string, number>();
+
   constructor(private readonly tokenCache: TokenCache = new TokenCache()) {}
 
-  createSession(country: string): AuthSession {
+  async createSession(country: string): Promise<AuthSession> {
     const key = country.toLowerCase();
     const cached = this.tokenCache.get(key);
     if (cached) {
       return cached;
     }
 
-    const accessToken = process.env.VINTED_AUTH_ACCESS_TOKEN?.trim() || "";
+    const failedAt = this.invalidatedAt.get(key);
+    if (failedAt && Date.now() - failedAt < INVALIDATION_COOLDOWN_MS) {
+      throw new Error(
+        `Env auth for '${key}' was invalidated. Refresh VINTED_AUTH_* environment variables and retry.`
+      );
+    }
+
+    let accessToken = process.env.VINTED_AUTH_ACCESS_TOKEN?.trim() || "";
     const csrfToken = process.env.VINTED_AUTH_CSRF_TOKEN?.trim() || "";
     const cookieValue = process.env.VINTED_AUTH_COOKIES?.trim() || "";
     const cookies = parseCookies(cookieValue);
+
+    if (!accessToken && cookies.access_token_web) {
+      accessToken = cookies.access_token_web;
+    }
+
+    let refreshToken = process.env.VINTED_AUTH_REFRESH_TOKEN?.trim() || "";
+    if (!refreshToken && cookies.refresh_token_web) {
+      refreshToken = cookies.refresh_token_web;
+    }
 
     if (!accessToken && !csrfToken && Object.keys(cookies).length === 0) {
       throw new Error(
         "Auth mode is 'env' but no credentials were found. Set VINTED_AUTH_COOKIES, VINTED_AUTH_ACCESS_TOKEN, or VINTED_AUTH_CSRF_TOKEN."
       );
+    }
+
+    if (!accessToken && refreshToken) {
+      const refreshed = await this.refresh(key, refreshToken, cookies, csrfToken);
+      if (refreshed) {
+        accessToken = refreshed.accessToken;
+        if (refreshed.cookies) {
+          Object.assign(cookies, refreshed.cookies);
+        }
+      }
     }
 
     const session: AuthSession = {
@@ -31,15 +62,56 @@ export class EnvAuth {
     };
 
     this.tokenCache.set(key, session);
+    this.invalidatedAt.delete(key);
     return session;
   }
 
   invalidate(country: string): void {
-    this.tokenCache.invalidate(country);
+    const key = country.toLowerCase();
+    this.tokenCache.invalidate(key);
+    this.invalidatedAt.set(key, Date.now());
   }
 
   clear(): void {
     this.tokenCache.invalidateAll();
+    this.invalidatedAt.clear();
+  }
+
+  private async refresh(
+    country: string,
+    refreshToken: string,
+    cookies: Record<string, string>,
+    csrfToken: string
+  ): Promise<{ accessToken: string; cookies?: Record<string, string> } | null> {
+    try {
+      const baseUrl = getBaseUrl(country);
+      const cookieHeader = Object.entries(cookies)
+        .map(([k, v]) => `${k}=${v}`)
+        .join("; ");
+
+      const res = await fetch(`${baseUrl}/oauth/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Cookie: cookieHeader,
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {})
+        },
+        body: JSON.stringify({ grant_type: "refresh_token", refresh_token: refreshToken })
+      });
+
+      if (!res.ok) {
+        return null;
+      }
+
+      const data = (await res.json()) as { access_token?: string };
+      if (!data.access_token) {
+        return null;
+      }
+      return { accessToken: data.access_token };
+    } catch {
+      return null;
+    }
   }
 }
 

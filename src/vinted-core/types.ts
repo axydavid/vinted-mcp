@@ -12,8 +12,10 @@ export interface ClientOptions {
   authMode?: AuthMode;
   maxConcurrency?: number;
   requestDelayMs?: number;
+  jitterMs?: number;
   maxRetries?: number;
   proxyUrl?: string;
+  proxies?: string[];
 }
 
 export interface SearchParams {

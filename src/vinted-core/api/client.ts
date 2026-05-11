@@ -8,7 +8,7 @@ import { buildItemUrl, buildSearchUrl, buildUserItemsUrl, buildUserUrl } from ".
 import { RateLimiter } from "./rate-limiter";
 import { parseItem, parseItemDetail, parseSearchResponse, parseSellerProfile } from "../parsers/response-parser";
 import type { AuthSession, ClientOptions, SearchParams } from "../types";
-import { runtimeRequire } from "../auth/utils";
+import { getRandomUserAgent, getBrowserHeaders, runtimeRequire } from "../auth/utils";
 
 export class VintedAPIClient {
   private readonly tokenCache = new TokenCache();
@@ -16,22 +16,28 @@ export class VintedAPIClient {
   private readonly envAuth: EnvAuth;
   private readonly rateLimiter: RateLimiter;
   private readonly maxRetries: number;
-  private readonly proxyUrl?: string;
+  private readonly proxies: string[];
   private readonly authMode: "http" | "playwright" | "env";
   private cookieFactory: CookieFactory | null = null;
   private playwrightAuth: PlaywrightAuth | null;
   private consecutiveFailures = 0;
+  private readonly sessionRequestCount = new Map<string, number>();
+  private readonly sessionLocks = new Map<string, Promise<AuthSession>>();
+  private cooldownUntil = 0;
 
   private static readonly MAX_CONSECUTIVE_FAILURES = 10;
   private static readonly BACKOFF_MS = 30000;
+  private static readonly MAX_BACKOFF_MS = 60000;
+  private static readonly LONG_COOLDOWN_MS = 5 * 60 * 1000;
+  private static readonly MAX_REQUESTS_PER_SESSION = 40;
 
   constructor(options: ClientOptions = {}) {
     this.authMode = options.authMode || "http";
-    this.httpAuth = new HttpAuth(this.tokenCache, options.proxyUrl);
+    this.proxies = options.proxies || (options.proxyUrl ? [options.proxyUrl] : []);
+    this.httpAuth = new HttpAuth(this.tokenCache, this.proxies.length > 0 ? this.proxies[0] : undefined);
     this.envAuth = new EnvAuth(new TokenCache());
-    this.rateLimiter = new RateLimiter(options.maxConcurrency || 5, options.requestDelayMs || 500);
+    this.rateLimiter = new RateLimiter(options.maxConcurrency || 5, options.requestDelayMs || 500, options.jitterMs || 300);
     this.maxRetries = options.maxRetries || 3;
-    this.proxyUrl = options.proxyUrl;
 
     if (this.authMode === "playwright") {
       this.cookieFactory = new CookieFactory(this.tokenCache);
@@ -276,6 +282,20 @@ export class VintedAPIClient {
   }
 
   private async getSession(country: string): Promise<AuthSession> {
+    const key = country.toLowerCase();
+    const existing = this.sessionLocks.get(key);
+    if (existing) {
+      return existing;
+    }
+
+    const promise = this.createSession(key).finally(() => {
+      this.sessionLocks.delete(key);
+    });
+    this.sessionLocks.set(key, promise);
+    return promise;
+  }
+
+  private async createSession(country: string): Promise<AuthSession> {
     if (this.authMode === "env") {
       return this.envAuth.createSession(country);
     }
@@ -292,23 +312,45 @@ export class VintedAPIClient {
   }
 
   private async makeRequest(url: string, country: string, retryCount = 0): Promise<any> {
+    const key = country.toLowerCase();
+
     if (this.consecutiveFailures >= VintedAPIClient.MAX_CONSECUTIVE_FAILURES) {
-      throw new Error(
-        `Aborting: ${VintedAPIClient.MAX_CONSECUTIVE_FAILURES} consecutive failures. Possible IP ban or API change.`
-      );
+      if (Date.now() < this.cooldownUntil) {
+        await sleep(this.cooldownUntil - Date.now());
+      } else {
+        this.cooldownUntil = Date.now() + VintedAPIClient.LONG_COOLDOWN_MS;
+        this.rateLimiter.pause(VintedAPIClient.LONG_COOLDOWN_MS);
+        console.warn(
+          `[vinted-core] ${VintedAPIClient.MAX_CONSECUTIVE_FAILURES} consecutive failures, cooling down ${VintedAPIClient.LONG_COOLDOWN_MS}ms before retrying`
+        );
+        await sleep(VintedAPIClient.LONG_COOLDOWN_MS);
+      }
+      this.consecutiveFailures = 0;
+      this.tokenCache.invalidate(key);
+      this.sessionRequestCount.set(key, 0);
     }
 
-    const session = await this.getSession(country);
+    const currentCount = this.sessionRequestCount.get(key) || 0;
+    if (currentCount >= VintedAPIClient.MAX_REQUESTS_PER_SESSION) {
+      this.tokenCache.invalidate(key);
+      this.sessionRequestCount.set(key, 0);
+    }
+
+    const session = await this.getSession(key);
+    this.sessionRequestCount.set(key, (this.sessionRequestCount.get(key) || 0) + 1);
+
     const cookieHeader = Object.entries(session.cookies)
-      .map(([key, value]) => `${key}=${value}`)
+      .map(([k, value]) => `${k}=${value}`)
       .join("; ");
 
+    const ua = getRandomUserAgent();
+    const baseUrl = getBaseUrl(key);
     const headers: Record<string, string> = {
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-      Accept: "application/json, text/plain, */*",
+      ...getBrowserHeaders(ua),
       Cookie: cookieHeader,
-      "X-CSRF-Token": session.csrfToken
+      "X-CSRF-Token": session.csrfToken,
+      Referer: `${baseUrl}/`,
+      Origin: baseUrl
     };
 
     if (session.accessToken) {
@@ -329,33 +371,72 @@ export class VintedAPIClient {
         return response.json();
       }
 
-      if ((response.status === 403 || response.status === 429) && retryCount < this.maxRetries) {
-        this.consecutiveFailures += 1;
-        this.tokenCache.invalidate(country);
+      const status = response.status;
+      const retriable = status === 401 || status === 403 || status === 429 || status === 503;
 
-        const body = await response.text();
-        if ((body.includes("cf-challenge") || body.includes("cloudflare")) && this.cookieFactory) {
-          this.tokenCache.invalidate(country);
-          await this.cookieFactory.createSession(country).catch(() => undefined);
+      if (retriable && retryCount < this.maxRetries) {
+        this.tokenCache.invalidate(key);
+        this.sessionRequestCount.set(key, 0);
+
+        if (this.authMode === "env" && status === 401) {
+          this.envAuth.invalidate(key);
         }
 
-        if (this.consecutiveFailures >= 3) {
-          await sleep(VintedAPIClient.BACKOFF_MS);
+        let pauseMs = 0;
+        if (status === 401) {
+          // First 401 likely just an expired token; don't penalize backoff yet.
+          pauseMs = retryCount === 0 ? 250 : this.computeBackoff(retryCount);
+          if (retryCount > 0) {
+            this.consecutiveFailures += 1;
+          }
+        } else {
+          this.consecutiveFailures += 1;
+          const retryAfter = parseRetryAfter(response.headers.get("retry-after"));
+          pauseMs = retryAfter ?? this.computeBackoff(this.consecutiveFailures);
         }
 
-        return this.makeRequest(url, country, retryCount + 1);
+        const body = await response.text().catch(() => "");
+        if (this.looksLikeCloudflare(response, body) && this.cookieFactory) {
+          await this.cookieFactory.createSession(key).catch(() => undefined);
+        }
+
+        if (pauseMs > 0) {
+          this.rateLimiter.pause(pauseMs);
+          await sleep(pauseMs);
+        }
+
+        return this.makeRequest(url, key, retryCount + 1);
       }
 
-      throw new Error(`Vinted API error: ${response.status} ${response.statusText}`);
+      throw new Error(`Vinted API error: ${status} ${response.statusText}`);
     } catch (error: any) {
-      if (retryCount < this.maxRetries && (error instanceof TypeError || error?.code === "ECONNRESET")) {
+      if (retryCount < this.maxRetries && (error instanceof TypeError || error?.code === "ECONNRESET" || error?.code === "ETIMEDOUT")) {
         this.consecutiveFailures += 1;
-        await sleep(1000 * (retryCount + 1));
-        return this.makeRequest(url, country, retryCount + 1);
+        const pauseMs = this.computeBackoff(retryCount + 1);
+        this.rateLimiter.pause(pauseMs);
+        await sleep(pauseMs);
+        return this.makeRequest(url, key, retryCount + 1);
       }
 
       throw error;
     }
+  }
+
+  private computeBackoff(attempt: number): number {
+    const exp = Math.min(VintedAPIClient.MAX_BACKOFF_MS, 1000 * Math.pow(2, Math.max(0, attempt)));
+    const jitter = Math.floor(Math.random() * 500);
+    return exp + jitter;
+  }
+
+  private looksLikeCloudflare(response: Response, body: string): boolean {
+    const server = response.headers.get("server")?.toLowerCase() || "";
+    if (server.includes("cloudflare")) {
+      return true;
+    }
+    if (response.headers.get("cf-mitigated") || response.headers.get("cf-ray")) {
+      return true;
+    }
+    return body.includes("cf-challenge") || body.includes("Just a moment") || body.includes("Attention Required");
   }
 
   private async makePlaywrightRequest(url: string, country: string, retryCount = 0): Promise<any> {
@@ -554,14 +635,16 @@ export class VintedAPIClient {
   }
 
   private getProxyDispatcher(): unknown {
-    if (!this.proxyUrl) {
+    if (!this.proxies || this.proxies.length === 0) {
       return undefined;
     }
+
+    const proxy = this.proxies[Math.floor(Math.random() * this.proxies.length)];
 
     try {
       const undici = runtimeRequire("undici") as { ProxyAgent?: new (url: string) => unknown };
       if (undici.ProxyAgent) {
-        return new undici.ProxyAgent(this.proxyUrl);
+        return new undici.ProxyAgent(proxy);
       }
     } catch {
       return undefined;
@@ -573,4 +656,19 @@ export class VintedAPIClient {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseRetryAfter(header: string | null): number | null {
+  if (!header) {
+    return null;
+  }
+  const seconds = Number(header);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(120_000, Math.round(seconds * 1000));
+  }
+  const date = Date.parse(header);
+  if (!Number.isNaN(date)) {
+    return Math.max(0, Math.min(120_000, date - Date.now()));
+  }
+  return null;
 }
