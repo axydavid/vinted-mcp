@@ -203,7 +203,29 @@ Security notes:
 
 ### `search_items`
 
-Search listings with filters like country, price range, brand IDs, category, condition, sort, and limit.
+Search listings with filters like country, price range, brand IDs, category, condition, sort, limit, and page.
+
+Parameters:
+
+- `limit` — items per page (default 20, max 100)
+- `page` — page number, 1-based (default 1). Omit to behave like a normal first-page search.
+
+Response includes pagination metadata:
+
+```json
+{
+  "totalFound": 330,
+  "page": 1,
+  "perPage": 100,
+  "totalPages": 4,
+  "hasMore": true,
+  "returned": 96,
+  "country": "ro",
+  "items": []
+}
+```
+
+To fetch the next page, call again with `page: 2` (same filters and `limit`).
 
 ### `get_item`
 

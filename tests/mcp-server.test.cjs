@@ -34,6 +34,14 @@ after(async () => {
   }
 });
 
+test("search_items tool exposes pagination params", async () => {
+  const response = await client.listTools();
+  const searchTool = (response.tools || []).find((tool) => tool.name === "search_items");
+  assert.ok(searchTool);
+  assert.equal(searchTool.inputSchema.properties.page.type, "integer");
+  assert.equal(searchTool.inputSchema.properties.limit.description.includes("per page"), true);
+});
+
 test("lists tools", async () => {
   const response = await client.listTools();
   const names = (response.tools || []).map((tool) => tool.name);

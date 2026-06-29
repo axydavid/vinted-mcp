@@ -27,13 +27,22 @@ export const searchItemsTool = {
         enum: ["relevance", "price_low_to_high", "price_high_to_low", "newest_first"],
         description: "Sort order"
       },
-      limit: { type: "integer", description: "Max items to return (max 100)", default: 20 }
+      limit: { type: "integer", description: "Items per page (max 100)", default: 20 },
+      page: {
+        type: "integer",
+        description: "Page number (1-based). Omit or use 1 for first page. Same as scrolling on vinted.com.",
+        default: 1,
+        minimum: 1
+      }
     },
     required: ["query"]
   }
 };
 
 export async function handleSearchItems(client: VintedAPIClient, args: any): Promise<string> {
+  const perPage = Math.min(Math.max(args.limit || 20, 1), 100);
+  const page = Math.max(Number(args.page) || 1, 1);
+
   const params = {
     query: args.query,
     country: args.country || "fr",
@@ -43,11 +52,15 @@ export async function handleSearchItems(client: VintedAPIClient, args: any): Pro
     priceMax: args.priceMax,
     condition: args.condition,
     sortBy: args.sortBy || "relevance",
-    perPage: Math.min(args.limit || 20, 100),
-    page: 1
+    perPage,
+    page
   };
 
   const result = await client.searchItems(params);
+  const totalFound = result.totalCount;
+  const totalPages = Math.max(1, Math.ceil(totalFound / perPage));
+  const hasMore = page < totalPages;
+
   const summary = result.items.map((item: any) => ({
     id: item.id,
     title: item.title,
@@ -62,7 +75,11 @@ export async function handleSearchItems(client: VintedAPIClient, args: any): Pro
 
   return JSON.stringify(
     {
-      totalFound: result.totalCount,
+      totalFound,
+      page,
+      perPage,
+      totalPages,
+      hasMore,
       returned: summary.length,
       country: params.country,
       items: summary
