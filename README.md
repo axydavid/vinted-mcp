@@ -1,7 +1,7 @@
 # Vinted MCP Server
 
 > **Fork of [andrijdavid/vinted-mcp](https://github.com/andrijdavid/vinted-mcp)** by [axydavid](https://github.com/axydavid)  
-> **Why forked:** upstream `search_items` only returned page 1 (max 100 results) with no way to paginate. This fork adds an optional `page` parameter (default `1`, same behavior as before) and returns `totalPages`, `hasMore`, and `perPage` so you can walk through full result sets — e.g. browsing all Dell Latitude listings on vinted.ro, not just the first screen.  
+> **Why forked:** upstream `search_items` only returned page 1 (max 100 results) with no way to paginate. This fork adds an optional `page` parameter (default `1`, same behavior as before) and returns `totalPages`, `hasMore`, and `perPage` so you can walk through full result sets.  
 > Contributions welcome upstream via PR; this fork tracks personal use until merged.
 
 [![npm version](https://img.shields.io/npm/v/%40andrijdavid%2Fvinted-mcp.svg)](https://www.npmjs.com/package/@andrijdavid/vinted-mcp)
